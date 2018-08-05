@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """
-    :author: Grey Li (李辉)
+    :author: TianMing Xu (徐天明)
     :url: http://greyli.com
-    :copyright: © 2018 Grey Li <withlihui@gmail.com>
+    :copyright: © 2021 TianMing Xu <78703671@qq.com>
     :license: MIT, see LICENSE for more details.
 """
 import os
@@ -25,7 +25,7 @@ class Operations:
 
 
 class BaseConfig:
-    ALBUMY_ADMIN_EMAIL = os.getenv('ALBUMY_ADMIN', 'admin@helloflask.com')
+    ALBUMY_ADMIN_EMAIL = os.getenv('ALBUMY_ADMIN', '78703671@qq.com')
     ALBUMY_PHOTO_PER_PAGE = 12
     ALBUMY_COMMENT_PER_PAGE = 15
     ALBUMY_NOTIFICATION_PER_PAGE = 20
@@ -45,7 +45,7 @@ class BaseConfig:
     }
 
     SECRET_KEY = os.getenv('SECRET_KEY', 'secret string')
-    MAX_CONTENT_LENGTH = 3 * 1024 * 1024  # file size exceed to 3 Mb will return a 413 error response.
+    MAX_CONTENT_LENGTH = 10 * 1024 * 1024  # file size exceed to 10 Mb will return a 413 error response.
 
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
@@ -60,7 +60,7 @@ class BaseConfig:
     MAIL_DEFAULT_SENDER = ('Albumy Admin', MAIL_USERNAME)
 
     DROPZONE_ALLOWED_FILE_TYPE = 'image'
-    DROPZONE_MAX_FILE_SIZE = 3
+    DROPZONE_MAX_FILE_SIZE = 10
     DROPZONE_MAX_FILES = 30
     DROPZONE_ENABLE_CSRF = True
 

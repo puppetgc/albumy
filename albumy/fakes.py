@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """
-    :author: Grey Li (李辉)
+    :author: TianMing Xu (徐天明)
     :url: http://greyli.com
-    :copyright: © 2018 Grey Li <withlihui@gmail.com>
+    :copyright: © 2021 TianMing Xu <78703671@qq.com>
     :license: MIT, see LICENSE for more details.
 """
 import os
@@ -14,19 +14,19 @@ from flask import current_app
 from sqlalchemy.exc import IntegrityError
 
 from albumy.extensions import db
-from albumy.models import User, Photo
+from albumy.models import User, Photo, Tag, Comment
 
 fake = Faker()
 
 
 def fake_admin():
     admin = User(name='Grey Li',
-                 username='greyli',
-                 email='admin@helloflask.com',
+                 username='antjakc',
+                 email='78703671@qq.com',
                  bio=fake.sentence(),
                  website='http://greyli.com',
                  confirmed=True)
-    admin.set_password('helloflask')
+    admin.set_password('antjakcde')
     db.session.add(admin)
     db.session.commit()
 
@@ -43,6 +43,16 @@ def fake_user(count=10):
                     email=fake.email())
         user.set_password('123456')
         db.session.add(user)
+        try:
+            db.session.commit()
+        except IntegrityError:
+            db.session.rollback()
+
+
+def fake_tag(count=20):
+    for i in range(count):
+        tag = Tag(name=fake.word())
+        db.session.add(tag)
         try:
             db.session.commit()
         except IntegrityError:
@@ -68,5 +78,24 @@ def fake_photo(count=30):
             author=User.query.get(random.randint(1, User.query.count())),
             timestamp=fake.date_time_this_year()
         )
+
+        # tags
+        for j in range(random.randint(1, 5)):
+            tag = Tag.query.get(random.randint(1, Tag.query.count()))
+            if tag not in photo.tags:
+                photo.tags.append(tag)
+
         db.session.add(photo)
+    db.session.commit()
+
+
+def fake_comment(count=100):
+    for i in range(count):
+        comment = Comment(
+            author=User.query.get(random.randint(1, User.query.count())),
+            body=fake.sentence(),
+            timestamp=fake.date_time_this_year(),
+            photo=Photo.query.get(random.randint(1, Photo.query.count()))
+        )
+        db.session.add(comment)
     db.session.commit()
