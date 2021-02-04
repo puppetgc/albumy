@@ -1,24 +1,21 @@
 # -*- coding: utf-8 -*-
 """
-    :author: Grey Li (李辉)
+    :author: TianMing Xu (徐天明)
     :url: http://greyli.com
-    :copyright: © 2018 Grey Li <withlihui@gmail.com>
+    :copyright: © 2021 TianMing Xu <78703671@qq.com>
     :license: MIT, see LICENSE for more details.
 """
 import os
 
 import click
 from flask import Flask, render_template
-from flask_login import current_user
 from flask_wtf.csrf import CSRFError
 
-from albumy.blueprints.admin import admin_bp
-from albumy.blueprints.ajax import ajax_bp
 from albumy.blueprints.auth import auth_bp
 from albumy.blueprints.main import main_bp
 from albumy.blueprints.user import user_bp
-from albumy.extensions import bootstrap, db, login_manager, mail, dropzone, moment, whooshee, avatars, csrf
-from albumy.models import Role, User, Photo, Tag, Follow, Notification, Comment, Collect, Permission
+from albumy.extensions import bootstrap, db, login_manager, mail, dropzone, moment, avatars, csrf
+from albumy.models import Role, User, Photo, Tag, Comment, Permission
 from albumy.settings import config
 
 
@@ -27,7 +24,7 @@ def create_app(config_name=None):
         config_name = os.getenv('FLASK_CONFIG', 'development')
 
     app = Flask('albumy')
-    
+
     app.config.from_object(config[config_name])
 
     register_extensions(app)
@@ -47,7 +44,6 @@ def register_extensions(app):
     mail.init_app(app)
     dropzone.init_app(app)
     moment.init_app(app)
-    whooshee.init_app(app)
     avatars.init_app(app)
     csrf.init_app(app)
 
@@ -56,26 +52,16 @@ def register_blueprints(app):
     app.register_blueprint(main_bp)
     app.register_blueprint(user_bp, url_prefix='/user')
     app.register_blueprint(auth_bp, url_prefix='/auth')
-    app.register_blueprint(admin_bp, url_prefix='/admin')
-    app.register_blueprint(ajax_bp, url_prefix='/ajax')
 
 
 def register_shell_context(app):
     @app.shell_context_processor
     def make_shell_context():
-        return dict(db=db, User=User, Photo=Photo, Tag=Tag,
-                    Follow=Follow, Collect=Collect, Comment=Comment,
-                    Notification=Notification)
+        return dict(db=db, User=User, Photo=Photo, Tag=Tag, Comment=Comment)
 
 
 def register_template_context(app):
-    @app.context_processor
-    def make_template_context():
-        if current_user.is_authenticated:
-            notification_count = Notification.query.with_parent(current_user).filter_by(is_read=False).count()
-        else:
-            notification_count = None
-        return dict(notification_count=notification_count)
+    pass
 
 
 def register_errorhandlers(app):
@@ -129,15 +115,13 @@ def register_commands(app):
 
     @app.cli.command()
     @click.option('--user', default=10, help='Quantity of users, default is 10.')
-    @click.option('--follow', default=30, help='Quantity of follows, default is 30.')
-    @click.option('--photo', default=30, help='Quantity of photos, default is 30.')
-    @click.option('--tag', default=20, help='Quantity of tags, default is 20.')
-    @click.option('--collect', default=50, help='Quantity of collects, default is 50.')
-    @click.option('--comment', default=100, help='Quantity of comments, default is 100.')
-    def forge(user, follow, photo, tag, collect, comment):
+    @click.option('--photo', default=30, help='Quantity of photos, default is 500.')
+    @click.option('--tag', default=20, help='Quantity of tags, default is 500.')
+    @click.option('--comment', default=100, help='Quantity of comments, default is 500.')
+    def forge(user, photo, tag, comment):
         """Generate fake data."""
 
-        from albumy.fakes import fake_admin, fake_comment, fake_follow, fake_photo, fake_tag, fake_user, fake_collect
+        from albumy.fakes import fake_admin, fake_comment, fake_photo, fake_tag, fake_user
 
         db.drop_all()
         db.create_all()
@@ -148,14 +132,10 @@ def register_commands(app):
         fake_admin()
         click.echo('Generating %d users...' % user)
         fake_user(user)
-        click.echo('Generating %d follows...' % follow)
-        fake_follow(follow)
         click.echo('Generating %d tags...' % tag)
         fake_tag(tag)
         click.echo('Generating %d photos...' % photo)
         fake_photo(photo)
-        click.echo('Generating %d collects...' % photo)
-        fake_collect(collect)
         click.echo('Generating %d comments...' % comment)
         fake_comment(comment)
         click.echo('Done.')

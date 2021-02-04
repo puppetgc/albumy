@@ -1,0 +1,15 @@
+admin
+avatars
+collect
+dropzone
+follow
+home
+login
+notification
+photo
+popup
+rbac
+search
+settings
+skeleton
+testing

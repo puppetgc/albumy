@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """
-    :author: Grey Li (李辉)
+    :author: TianMing Xu (徐天明)
     :url: http://greyli.com
-    :copyright: © 2018 Grey Li <withlihui@gmail.com>
+    :copyright: © 2021 TianMing Xu <78703671@qq.com>
     :license: MIT, see LICENSE for more details.
 """
 import os
@@ -13,7 +13,7 @@ from flask_avatars import Identicon
 from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
 
-from albumy.extensions import db, whooshee
+from albumy.extensions import db
 
 # relationship table
 roles_permissions = db.Table('roles_permissions',
@@ -58,31 +58,6 @@ class Role(db.Model):
         db.session.commit()
 
 
-# relationship object
-class Follow(db.Model):
-    follower_id = db.Column(db.Integer, db.ForeignKey('user.id'),
-                            primary_key=True)
-    followed_id = db.Column(db.Integer, db.ForeignKey('user.id'),
-                            primary_key=True)
-    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
-
-    follower = db.relationship('User', foreign_keys=[follower_id], back_populates='following', lazy='joined')
-    followed = db.relationship('User', foreign_keys=[followed_id], back_populates='followers', lazy='joined')
-
-
-# relationship object
-class Collect(db.Model):
-    collector_id = db.Column(db.Integer, db.ForeignKey('user.id'),
-                             primary_key=True)
-    collected_id = db.Column(db.Integer, db.ForeignKey('photo.id'),
-                             primary_key=True)
-    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
-
-    collector = db.relationship('User', back_populates='collections', lazy='joined')
-    collected = db.relationship('Photo', back_populates='collectors', lazy='joined')
-
-
-@whooshee.register_model('name', 'username')
 class User(db.Model, UserMixin):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(20), unique=True, index=True)
@@ -96,33 +71,18 @@ class User(db.Model, UserMixin):
     avatar_s = db.Column(db.String(64))
     avatar_m = db.Column(db.String(64))
     avatar_l = db.Column(db.String(64))
-    avatar_raw = db.Column(db.String(64))
 
     confirmed = db.Column(db.Boolean, default=False)
-    locked = db.Column(db.Boolean, default=False)
-    active = db.Column(db.Boolean, default=True)
-
-    public_collections = db.Column(db.Boolean, default=True)
-    receive_comment_notification = db.Column(db.Boolean, default=True)
-    receive_follow_notification = db.Column(db.Boolean, default=True)
-    receive_collect_notification = db.Column(db.Boolean, default=True)
 
     role_id = db.Column(db.Integer, db.ForeignKey('role.id'))
 
     role = db.relationship('Role', back_populates='users')
     photos = db.relationship('Photo', back_populates='author', cascade='all')
     comments = db.relationship('Comment', back_populates='author', cascade='all')
-    notifications = db.relationship('Notification', back_populates='receiver', cascade='all')
-    collections = db.relationship('Collect', back_populates='collector', cascade='all')
-    following = db.relationship('Follow', foreign_keys=[Follow.follower_id], back_populates='follower',
-                                lazy='dynamic', cascade='all')
-    followers = db.relationship('Follow', foreign_keys=[Follow.followed_id], back_populates='followed',
-                                lazy='dynamic', cascade='all')
 
     def __init__(self, **kwargs):
         super(User, self).__init__(**kwargs)
         self.generate_avatar()
-        self.follow(self)  # follow self
         self.set_role()
 
     def set_password(self, password):
@@ -139,63 +99,6 @@ class User(db.Model, UserMixin):
     def validate_password(self, password):
         return check_password_hash(self.password_hash, password)
 
-    def follow(self, user):
-        if not self.is_following(user):
-            follow = Follow(follower=self, followed=user)
-            db.session.add(follow)
-            db.session.commit()
-
-    def unfollow(self, user):
-        follow = self.following.filter_by(followed_id=user.id).first()
-        if follow:
-            db.session.delete(follow)
-            db.session.commit()
-
-    def is_following(self, user):
-        if user.id is None:  # when follow self, user.id will be None
-            return False
-        return self.following.filter_by(followed_id=user.id).first() is not None
-
-    def is_followed_by(self, user):
-        return self.followers.filter_by(follower_id=user.id).first() is not None
-
-    @property
-    def followed_photos(self):
-        return Photo.query.join(Follow, Follow.followed_id == Photo.author_id).filter(Follow.follower_id == self.id)
-
-    def collect(self, photo):
-        if not self.is_collecting(photo):
-            collect = Collect(collector=self, collected=photo)
-            db.session.add(collect)
-            db.session.commit()
-
-    def uncollect(self, photo):
-        collect = Collect.query.with_parent(self).filter_by(collected_id=photo.id).first()
-        if collect:
-            db.session.delete(collect)
-            db.session.commit()
-
-    def is_collecting(self, photo):
-        return Collect.query.with_parent(self).filter_by(collected_id=photo.id).first() is not None
-
-    def lock(self):
-        self.locked = True
-        self.role = Role.query.filter_by(name='Locked').first()
-        db.session.commit()
-
-    def unlock(self):
-        self.locked = False
-        self.role = Role.query.filter_by(name='User').first()
-        db.session.commit()
-
-    def block(self):
-        self.active = False
-        db.session.commit()
-
-    def unblock(self):
-        self.active = True
-        db.session.commit()
-
     def generate_avatar(self):
         avatar = Identicon()
         filenames = avatar.generate(text=self.username)
@@ -208,10 +111,6 @@ class User(db.Model, UserMixin):
     def is_admin(self):
         return self.role.name == 'Administrator'
 
-    @property
-    def is_active(self):
-        return self.active
-
     def can(self, permission_name):
         permission = Permission.query.filter_by(name=permission_name).first()
         return permission is not None and self.role is not None and permission in self.role.permissions
@@ -223,7 +122,6 @@ tagging = db.Table('tagging',
                    )
 
 
-@whooshee.register_model('description')
 class Photo(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     description = db.Column(db.String(500))
@@ -237,11 +135,9 @@ class Photo(db.Model):
 
     author = db.relationship('User', back_populates='photos')
     comments = db.relationship('Comment', back_populates='photo', cascade='all')
-    collectors = db.relationship('Collect', back_populates='collected', cascade='all')
     tags = db.relationship('Tag', secondary=tagging, back_populates='photos')
 
 
-@whooshee.register_model('name')
 class Tag(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(64), index=True, unique=True)
@@ -263,27 +159,6 @@ class Comment(db.Model):
     author = db.relationship('User', back_populates='comments')
     replies = db.relationship('Comment', back_populates='replied', cascade='all')
     replied = db.relationship('Comment', back_populates='replies', remote_side=[id])
-
-
-class Notification(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    message = db.Column(db.Text, nullable=False)
-    is_read = db.Column(db.Boolean, default=False)
-    timestamp = db.Column(db.DateTime, default=datetime.utcnow, index=True)
-
-    receiver_id = db.Column(db.Integer, db.ForeignKey('user.id'))
-
-    receiver = db.relationship('User', back_populates='notifications')
-
-
-@db.event.listens_for(User, 'after_delete', named=True)
-def delete_avatars(**kwargs):
-    target = kwargs['target']
-    for filename in [target.avatar_s, target.avatar_m, target.avatar_l, target.avatar_raw]:
-        if filename is not None:  # avatar_raw may be None
-            path = os.path.join(current_app.config['AVATARS_SAVE_PATH'], filename)
-            if os.path.exists(path):  # not every filename map a unique file
-                os.remove(path)
 
 
 @db.event.listens_for(Photo, 'after_delete', named=True)

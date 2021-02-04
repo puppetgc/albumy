@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """
-    :author: Grey Li (李辉)
+    :author: TianMing Xu (徐天明)
     :url: http://greyli.com
-    :copyright: © 2018 Grey Li <withlihui@gmail.com>
+    :copyright: © 2021 TianMing Xu <78703671@qq.com>
     :license: MIT, see LICENSE for more details.
 """
 import os
@@ -10,98 +10,24 @@ import os
 from flask import render_template, flash, redirect, url_for, current_app, \
     send_from_directory, request, abort, Blueprint
 from flask_login import login_required, current_user
-from sqlalchemy.sql.expression import func
 
 from albumy.decorators import confirm_required, permission_required
 from albumy.extensions import db
 from albumy.forms.main import DescriptionForm, TagForm, CommentForm
-from albumy.models import User, Photo, Tag, Follow, Collect, Comment, Notification
-from albumy.notifications import push_comment_notification, push_collect_notification
-from albumy.utils import rename_image, resize_image, redirect_back, flash_errors
+from albumy.models import Photo, Tag, Comment
+from albumy.utils import rename_image, resize_image, flash_errors
 
 main_bp = Blueprint('main', __name__)
 
 
 @main_bp.route('/')
 def index():
-    if current_user.is_authenticated:
-        page = request.args.get('page', 1, type=int)
-        per_page = current_app.config['ALBUMY_PHOTO_PER_PAGE']
-        pagination = Photo.query \
-            .join(Follow, Follow.followed_id == Photo.author_id) \
-            .filter(Follow.follower_id == current_user.id) \
-            .order_by(Photo.timestamp.desc()) \
-            .paginate(page, per_page)
-        photos = pagination.items
-    else:
-        pagination = None
-        photos = None
-    tags = Tag.query.join(Tag.photos).group_by(Tag.id).order_by(func.count(Photo.id).desc()).limit(10)
-    return render_template('main/index.html', pagination=pagination, photos=photos, tags=tags, Collect=Collect)
+    return render_template('main/index.html')
 
 
 @main_bp.route('/explore')
 def explore():
-    photos = Photo.query.order_by(func.random()).limit(12)
-    return render_template('main/explore.html', photos=photos)
-
-
-@main_bp.route('/search')
-def search():
-    q = request.args.get('q', '').strip()
-    if q == '':
-        flash('Enter keyword about photo, user or tag.', 'warning')
-        return redirect_back()
-
-    category = request.args.get('category', 'photo')
-    page = request.args.get('page', 1, type=int)
-    per_page = current_app.config['ALBUMY_SEARCH_RESULT_PER_PAGE']
-    if category == 'user':
-        pagination = User.query.whooshee_search(q).paginate(page, per_page)
-    elif category == 'tag':
-        pagination = Tag.query.whooshee_search(q).paginate(page, per_page)
-    else:
-        pagination = Photo.query.whooshee_search(q).paginate(page, per_page)
-    results = pagination.items
-    return render_template('main/search.html', q=q, results=results, pagination=pagination, category=category)
-
-
-@main_bp.route('/notifications')
-@login_required
-def show_notifications():
-    page = request.args.get('page', 1, type=int)
-    per_page = current_app.config['ALBUMY_NOTIFICATION_PER_PAGE']
-    notifications = Notification.query.with_parent(current_user)
-    filter_rule = request.args.get('filter')
-    if filter_rule == 'unread':
-        notifications = notifications.filter_by(is_read=False)
-
-    pagination = notifications.order_by(Notification.timestamp.desc()).paginate(page, per_page)
-    notifications = pagination.items
-    return render_template('main/notifications.html', pagination=pagination, notifications=notifications)
-
-
-@main_bp.route('/notification/read/<int:notification_id>', methods=['POST'])
-@login_required
-def read_notification(notification_id):
-    notification = Notification.query.get_or_404(notification_id)
-    if current_user != notification.receiver:
-        abort(403)
-
-    notification.is_read = True
-    db.session.commit()
-    flash('Notification archived.', 'success')
-    return redirect(url_for('.show_notifications'))
-
-
-@main_bp.route('/notifications/read/all', methods=['POST'])
-@login_required
-def read_all_notification():
-    for notification in current_user.notifications:
-        notification.is_read = True
-    db.session.commit()
-    flash('All notifications archived.', 'success')
-    return redirect(url_for('.show_notifications'))
+    return render_template('main/explore.html')
 
 
 @main_bp.route('/uploads/<path:filename>')
@@ -176,36 +102,6 @@ def photo_previous(photo_id):
     return redirect(url_for('.show_photo', photo_id=photo_p.id))
 
 
-@main_bp.route('/collect/<int:photo_id>', methods=['POST'])
-@login_required
-@confirm_required
-@permission_required('COLLECT')
-def collect(photo_id):
-    photo = Photo.query.get_or_404(photo_id)
-    if current_user.is_collecting(photo):
-        flash('Already collected.', 'info')
-        return redirect(url_for('.show_photo', photo_id=photo_id))
-
-    current_user.collect(photo)
-    flash('Photo collected.', 'success')
-    if current_user != photo.author and photo.author.receive_collect_notification:
-        push_collect_notification(collector=current_user, photo_id=photo_id, receiver=photo.author)
-    return redirect(url_for('.show_photo', photo_id=photo_id))
-
-
-@main_bp.route('/uncollect/<int:photo_id>', methods=['POST'])
-@login_required
-def uncollect(photo_id):
-    photo = Photo.query.get_or_404(photo_id)
-    if not current_user.is_collecting(photo):
-        flash('Not collect yet.', 'info')
-        return redirect(url_for('.show_photo', photo_id=photo_id))
-
-    current_user.uncollect(photo)
-    flash('Photo uncollected.', 'info')
-    return redirect(url_for('.show_photo', photo_id=photo_id))
-
-
 @main_bp.route('/report/comment/<int:comment_id>', methods=['POST'])
 @login_required
 @confirm_required
@@ -228,21 +124,11 @@ def report_photo(photo_id):
     return redirect(url_for('.show_photo', photo_id=photo.id))
 
 
-@main_bp.route('/photo/<int:photo_id>/collectors')
-def show_collectors(photo_id):
-    photo = Photo.query.get_or_404(photo_id)
-    page = request.args.get('page', 1, type=int)
-    per_page = current_app.config['ALBUMY_USER_PER_PAGE']
-    pagination = Collect.query.with_parent(photo).order_by(Collect.timestamp.asc()).paginate(page, per_page)
-    collects = pagination.items
-    return render_template('main/collectors.html', collects=collects, photo=photo, pagination=pagination)
-
-
 @main_bp.route('/photo/<int:photo_id>/description', methods=['POST'])
 @login_required
 def edit_description(photo_id):
     photo = Photo.query.get_or_404(photo_id)
-    if current_user != photo.author and not current_user.can('MODERATE'):
+    if current_user != photo.author:
         abort(403)
 
     form = DescriptionForm()
@@ -270,14 +156,9 @@ def new_comment(photo_id):
         replied_id = request.args.get('reply')
         if replied_id:
             comment.replied = Comment.query.get_or_404(replied_id)
-            if comment.replied.author.receive_comment_notification:
-                push_comment_notification(photo_id=photo.id, receiver=comment.replied.author)
         db.session.add(comment)
         db.session.commit()
         flash('Comment published.', 'success')
-
-        if current_user != photo.author and photo.author.receive_comment_notification:
-            push_comment_notification(photo_id, receiver=photo.author, page=page)
 
     flash_errors(form)
     return redirect(url_for('.show_photo', photo_id=photo_id, page=page))
@@ -287,7 +168,7 @@ def new_comment(photo_id):
 @login_required
 def new_tag(photo_id):
     photo = Photo.query.get_or_404(photo_id)
-    if current_user != photo.author and not current_user.can('MODERATE'):
+    if current_user != photo.author:
         abort(403)
 
     form = TagForm()
@@ -338,7 +219,7 @@ def reply_comment(comment_id):
 @login_required
 def delete_photo(photo_id):
     photo = Photo.query.get_or_404(photo_id)
-    if current_user != photo.author and not current_user.can('MODERATE'):
+    if current_user != photo.author:
         abort(403)
 
     db.session.delete(photo)
@@ -358,8 +239,7 @@ def delete_photo(photo_id):
 @login_required
 def delete_comment(comment_id):
     comment = Comment.query.get_or_404(comment_id)
-    if current_user != comment.author and current_user != comment.photo.author \
-            and not current_user.can('MODERATE'):
+    if current_user != comment.author and current_user != comment.photo.author:
         abort(403)
     db.session.delete(comment)
     db.session.commit()
@@ -388,7 +268,7 @@ def show_tag(tag_id, order):
 def delete_tag(photo_id, tag_id):
     tag = Tag.query.get_or_404(tag_id)
     photo = Photo.query.get_or_404(photo_id)
-    if current_user != photo.author and not current_user.can('MODERATE'):
+    if current_user != photo.author:
         abort(403)
     photo.tags.remove(tag)
     db.session.commit()

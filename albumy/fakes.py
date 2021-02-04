@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """
-    :author: Grey Li (李辉)
+    :author: TianMing Xu (徐天明)
     :url: http://greyli.com
-    :copyright: © 2018 Grey Li <withlihui@gmail.com>
+    :copyright: © 2021 TianMing Xu <78703671@qq.com>
     :license: MIT, see LICENSE for more details.
 """
 import os
@@ -14,21 +14,19 @@ from flask import current_app
 from sqlalchemy.exc import IntegrityError
 
 from albumy.extensions import db
-from albumy.models import User, Photo, Tag, Comment, Notification
+from albumy.models import User, Photo, Tag, Comment
 
 fake = Faker()
 
 
 def fake_admin():
     admin = User(name='Grey Li',
-                 username='greyli',
-                 email='admin@helloflask.com',
+                 username='antjakc',
+                 email='78703671@qq.com',
                  bio=fake.sentence(),
                  website='http://greyli.com',
                  confirmed=True)
-    admin.set_password('helloflask')
-    notification = Notification(message='Hello, welcome to Albumy.', receiver=admin)
-    db.session.add(notification)
+    admin.set_password('antjakcde')
     db.session.add(admin)
     db.session.commit()
 
@@ -49,13 +47,6 @@ def fake_user(count=10):
             db.session.commit()
         except IntegrityError:
             db.session.rollback()
-
-
-def fake_follow(count=30):
-    for i in range(count):
-        user = User.query.get(random.randint(1, User.query.count()))
-        user.follow(User.query.get(random.randint(1, User.query.count())))
-    db.session.commit()
 
 
 def fake_tag(count=20):
@@ -95,13 +86,6 @@ def fake_photo(count=30):
                 photo.tags.append(tag)
 
         db.session.add(photo)
-    db.session.commit()
-
-
-def fake_collect(count=50):
-    for i in range(count):
-        user = User.query.get(random.randint(1, User.query.count()))
-        user.collect(Photo.query.get(random.randint(1, Photo.query.count())))
     db.session.commit()
 
 
