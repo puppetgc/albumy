@@ -20,7 +20,7 @@ fake = Faker()
 
 
 def fake_admin():
-    admin = User(name='Grey Li',
+    admin = User(name='TianMing Xu',
                  username='antjakc',
                  email='78703671@qq.com',
                  bio=fake.sentence(),
